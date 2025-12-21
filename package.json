@@ -1,0 +1,39 @@
+{
+  "name": "cvx-excel",
+  "version": "0.1.0",
+  "description": "Convex optimization for Excel using cvxjs",
+  "type": "module",
+  "main": "dist/functions/functions.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "office-addin-debugging start manifest.xml",
+    "stop": "office-addin-debugging stop manifest.xml",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cvxjs": "^0.1.2"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.377",
+    "@types/office-runtime": "^1.0.35",
+    "office-addin-debugging": "^5.0.0",
+    "office-addin-manifest": "^1.12.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SteveDiamond/cvx-excel.git"
+  },
+  "author": "Steven Diamond",
+  "license": "Apache-2.0"
+}

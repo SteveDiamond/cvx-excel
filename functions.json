@@ -1,0 +1,119 @@
+{
+  "allowCustomDataForDataTypeAny": true,
+  "functions": [
+    {
+      "id": "LP",
+      "name": "LP",
+      "description": "Solve a linear program: minimize c'x subject to Ax <= b",
+      "helpUrl": "https://github.com/SteveDiamond/cvx-excel#cvxlp",
+      "result": {
+        "type": "any",
+        "dimensionality": "matrix"
+      },
+      "parameters": [
+        {
+          "name": "c",
+          "description": "Objective coefficients (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "A",
+          "description": "Constraint matrix (m x n)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "b",
+          "description": "Constraint right-hand side (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "sense",
+          "description": "Optimization sense: 'min' or 'max'",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "options": {
+        "volatile": false,
+        "cancelable": false
+      }
+    },
+    {
+      "id": "QP",
+      "name": "QP",
+      "description": "Solve a quadratic program: minimize 0.5*x'Qx + c'x subject to Ax <= b",
+      "helpUrl": "https://github.com/SteveDiamond/cvx-excel#cvxqp",
+      "result": {
+        "type": "any",
+        "dimensionality": "matrix"
+      },
+      "parameters": [
+        {
+          "name": "Q",
+          "description": "Quadratic cost matrix (positive semidefinite)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "c",
+          "description": "Linear cost coefficients",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "A",
+          "description": "Constraint matrix",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "b",
+          "description": "Constraint right-hand side",
+          "type": "any",
+          "dimensionality": "matrix"
+        }
+      ],
+      "options": {
+        "volatile": false,
+        "cancelable": false
+      }
+    },
+    {
+      "id": "PORTFOLIO",
+      "name": "PORTFOLIO",
+      "description": "Optimize portfolio: maximize return - risk_aversion * variance",
+      "helpUrl": "https://github.com/SteveDiamond/cvx-excel#cvxportfolio",
+      "result": {
+        "type": "any",
+        "dimensionality": "matrix"
+      },
+      "parameters": [
+        {
+          "name": "returns",
+          "description": "Expected returns vector",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "covariance",
+          "description": "Covariance matrix of returns",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "risk_aversion",
+          "description": "Risk aversion parameter (default: 1)",
+          "type": "number",
+          "optional": true
+        }
+      ],
+      "options": {
+        "volatile": false,
+        "cancelable": false
+      }
+    }
+  ]
+}

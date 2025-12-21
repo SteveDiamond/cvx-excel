@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CVX Excel</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 14px;
+        padding: 16px;
+        background: #f5f5f5;
+        color: #333;
+      }
+
+      h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #217346;
+      }
+
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 16px 0 8px 0;
+        color: #555;
+      }
+
+      .section {
+        background: white;
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+      }
+
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      input[type="text"]:focus,
+      select:focus {
+        outline: none;
+        border-color: #217346;
+      }
+
+      button {
+        background: #217346;
+        color: white;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        width: 100%;
+        margin-top: 8px;
+      }
+
+      button:hover {
+        background: #1a5c38;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      button.secondary {
+        background: #666;
+      }
+
+      button.secondary:hover {
+        background: #555;
+      }
+
+      .status {
+        margin-top: 12px;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+
+      .status.info {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .status.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .status.error {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .range-input {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .range-input input {
+        flex: 1;
+        margin-bottom: 0;
+      }
+
+      .range-input button {
+        width: auto;
+        margin-top: 0;
+        padding: 8px 12px;
+      }
+
+      .help-text {
+        font-size: 12px;
+        color: #888;
+        margin-top: 4px;
+      }
+
+      .tab-container {
+        display: flex;
+        border-bottom: 2px solid #217346;
+        margin-bottom: 12px;
+      }
+
+      .tab {
+        padding: 8px 16px;
+        cursor: pointer;
+        border: none;
+        background: none;
+        color: #666;
+        font-size: 14px;
+        width: auto;
+        margin: 0;
+      }
+
+      .tab:hover {
+        color: #217346;
+      }
+
+      .tab.active {
+        color: #217346;
+        font-weight: 600;
+        border-bottom: 2px solid #217346;
+        margin-bottom: -2px;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>CVX Excel</h1>
+    <p style="margin-bottom: 16px; color: #666;">
+      Convex optimization powered by cvxjs
+    </p>
+
+    <div class="tab-container">
+      <button class="tab active" data-tab="lp">LP</button>
+      <button class="tab" data-tab="qp">QP</button>
+      <button class="tab" data-tab="portfolio">Portfolio</button>
+    </div>
+
+    <!-- Linear Programming Tab -->
+    <div id="lp-tab" class="tab-content active">
+      <div class="section">
+        <h2>Linear Program</h2>
+        <p class="help-text">minimize c'x subject to Ax ≤ b, x ≥ 0</p>
+
+        <label for="lp-c">Objective (c):</label>
+        <div class="range-input">
+          <input type="text" id="lp-c" placeholder="e.g., A1:A5" />
+          <button class="secondary" onclick="selectRange('lp-c')">Select</button>
+        </div>
+
+        <label for="lp-A">Constraint Matrix (A):</label>
+        <div class="range-input">
+          <input type="text" id="lp-A" placeholder="e.g., B1:F3" />
+          <button class="secondary" onclick="selectRange('lp-A')">Select</button>
+        </div>
+
+        <label for="lp-b">Constraint RHS (b):</label>
+        <div class="range-input">
+          <input type="text" id="lp-b" placeholder="e.g., G1:G3" />
+          <button class="secondary" onclick="selectRange('lp-b')">Select</button>
+        </div>
+
+        <label for="lp-sense">Sense:</label>
+        <select id="lp-sense">
+          <option value="min">Minimize</option>
+          <option value="max">Maximize</option>
+        </select>
+
+        <label for="lp-output">Output Cell:</label>
+        <div class="range-input">
+          <input type="text" id="lp-output" placeholder="e.g., H1" />
+          <button class="secondary" onclick="selectRange('lp-output')">Select</button>
+        </div>
+
+        <button onclick="solveLP()">Solve LP</button>
+      </div>
+    </div>
+
+    <!-- Quadratic Programming Tab -->
+    <div id="qp-tab" class="tab-content">
+      <div class="section">
+        <h2>Quadratic Program</h2>
+        <p class="help-text">minimize 0.5x'Qx + c'x subject to Ax ≤ b, x ≥ 0</p>
+
+        <label for="qp-Q">Quadratic Cost (Q):</label>
+        <div class="range-input">
+          <input type="text" id="qp-Q" placeholder="e.g., A1:E5" />
+          <button class="secondary" onclick="selectRange('qp-Q')">Select</button>
+        </div>
+
+        <label for="qp-c">Linear Cost (c):</label>
+        <div class="range-input">
+          <input type="text" id="qp-c" placeholder="e.g., F1:F5" />
+          <button class="secondary" onclick="selectRange('qp-c')">Select</button>
+        </div>
+
+        <label for="qp-A">Constraint Matrix (A):</label>
+        <div class="range-input">
+          <input type="text" id="qp-A" placeholder="e.g., G1:K3" />
+          <button class="secondary" onclick="selectRange('qp-A')">Select</button>
+        </div>
+
+        <label for="qp-b">Constraint RHS (b):</label>
+        <div class="range-input">
+          <input type="text" id="qp-b" placeholder="e.g., L1:L3" />
+          <button class="secondary" onclick="selectRange('qp-b')">Select</button>
+        </div>
+
+        <label for="qp-output">Output Cell:</label>
+        <div class="range-input">
+          <input type="text" id="qp-output" placeholder="e.g., M1" />
+          <button class="secondary" onclick="selectRange('qp-output')">Select</button>
+        </div>
+
+        <button onclick="solveQP()">Solve QP</button>
+      </div>
+    </div>
+
+    <!-- Portfolio Optimization Tab -->
+    <div id="portfolio-tab" class="tab-content">
+      <div class="section">
+        <h2>Portfolio Optimization</h2>
+        <p class="help-text">maximize return - γ × variance, weights sum to 1</p>
+
+        <label for="port-returns">Expected Returns:</label>
+        <div class="range-input">
+          <input type="text" id="port-returns" placeholder="e.g., A1:A10" />
+          <button class="secondary" onclick="selectRange('port-returns')">Select</button>
+        </div>
+
+        <label for="port-cov">Covariance Matrix:</label>
+        <div class="range-input">
+          <input type="text" id="port-cov" placeholder="e.g., B1:K10" />
+          <button class="secondary" onclick="selectRange('port-cov')">Select</button>
+        </div>
+
+        <label for="port-gamma">Risk Aversion (γ):</label>
+        <input type="text" id="port-gamma" value="1" placeholder="e.g., 1" />
+
+        <label for="port-output">Output Cell:</label>
+        <div class="range-input">
+          <input type="text" id="port-output" placeholder="e.g., L1" />
+          <button class="secondary" onclick="selectRange('port-output')">Select</button>
+        </div>
+
+        <button onclick="solvePortfolio()">Optimize Portfolio</button>
+      </div>
+    </div>
+
+    <div id="status" class="status info">Ready. Select ranges and click Solve.</div>
+
+    <script type="module" src="/src/taskpane/taskpane.ts"></script>
+  </body>
+</html>

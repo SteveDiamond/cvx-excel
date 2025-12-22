@@ -115,12 +115,17 @@ async function readRange(address: string): Promise<number[][]> {
   });
 }
 
-// Write values to Excel
+// Write values to Excel - auto-resize to fit output array
 async function writeRange(address: string, values: (number | string)[][]): Promise<void> {
   return Excel.run(async (context) => {
     const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const range = sheet.getRange(address);
-    range.values = values;
+    // Get just the starting cell (first cell if range provided)
+    const startCell = sheet.getRange(address).getCell(0, 0);
+    // Resize to match output dimensions
+    const rows = values.length;
+    const cols = values[0]?.length || 1;
+    const outputRange = startCell.getResizedRange(rows - 1, cols - 1);
+    outputRange.values = values;
     await context.sync();
   });
 }
@@ -187,12 +192,16 @@ async function solveLP(): Promise<void> {
     }
 
     const solution = result.valueOf(x);
-    const solutionFlat = Array.isArray(solution) ? solution.flat() : [solution];
+    // Fully flatten nested arrays and convert to numbers
+    const solutionFlat: number[] = (Array.isArray(solution) ? solution.flat(Infinity) : [solution]) as number[];
+
+    console.log("Solution raw:", solution);
+    console.log("Solution flat:", solutionFlat);
 
     // Write results
     const output: (number | string)[][] = [
       ["Optimal", optVal],
-      ...solutionFlat.map((v, i) => [`x[${i}]`, v]),
+      ...solutionFlat.map((v, i) => [`x[${i}]`, v ?? 0]),
     ];
     await writeRange(outputAddr, output);
 

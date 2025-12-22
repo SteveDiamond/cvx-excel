@@ -2,6 +2,11 @@ import { defineConfig } from "vite";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import { resolve } from "path";
+import { readFileSync } from "fs";
+import { homedir } from "os";
+
+// Office Add-in dev certificates
+const certDir = resolve(homedir(), ".office-addin-dev-certs");
 
 export default defineConfig({
   plugins: [wasm(), topLevelAwait()],
@@ -25,7 +30,10 @@ export default defineConfig({
 
   server: {
     port: 3000,
-    https: true,
+    https: {
+      key: readFileSync(resolve(certDir, "localhost.key")),
+      cert: readFileSync(resolve(certDir, "localhost.crt")),
+    },
   },
 
   resolve: {

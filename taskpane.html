@@ -334,6 +334,185 @@
         padding: 4px 8px;
         font-size: 12px;
       }
+
+      /* Formula Mode Styles */
+      .pb-mode-toggle {
+        display: flex;
+        gap: 0;
+        margin-bottom: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .pb-mode-toggle button {
+        flex: 1;
+        padding: 6px 12px;
+        border: none;
+        background: #f5f5f5;
+        color: #666;
+        cursor: pointer;
+        font-size: 12px;
+        margin: 0;
+        width: auto;
+        border-radius: 0;
+      }
+
+      .pb-mode-toggle button:hover {
+        background: #e0e0e0;
+      }
+
+      .pb-mode-toggle button.active {
+        background: #217346;
+        color: white;
+        font-weight: 500;
+      }
+
+      .pb-formula-input {
+        margin-bottom: 12px;
+      }
+
+      .pb-formula-input label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: #666;
+        font-weight: 500;
+      }
+
+      .pb-formula-input-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .pb-formula-input-row input {
+        flex: 1;
+        margin: 0;
+      }
+
+      .pb-formula-input-row button {
+        width: auto;
+        margin: 0;
+        padding: 8px 12px;
+      }
+
+      .pb-formula-cell {
+        font-family: 'Consolas', 'Monaco', monospace;
+      }
+
+      .pb-formula-display {
+        background: #f5f5f5;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        margin-bottom: 8px;
+        min-height: 32px;
+      }
+
+      .pb-formula-display .placeholder {
+        color: #888;
+        font-style: italic;
+      }
+
+      .pb-formula-display code {
+        background: none;
+        padding: 0;
+      }
+
+      .pb-formula-result {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #e8f4ff;
+        border-radius: 4px;
+        margin-bottom: 8px;
+      }
+
+      .pb-formula-result .parsed-expr {
+        flex: 1;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+      }
+
+      .curvature-badge {
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .curvature-constant {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .curvature-affine {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .curvature-convex {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .curvature-concave {
+        background: #fff3e0;
+        color: #e65100;
+      }
+
+      .curvature-unknown {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .pb-dcp-status {
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .pb-dcp-status.dcp-valid {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .pb-dcp-status.dcp-invalid {
+        background: #fff3e0;
+        color: #e65100;
+      }
+
+      .pb-dcp-status.dcp-pending {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+
+      .pb-formula-rhs-row {
+        margin-top: 8px;
+      }
+
+      .pb-formula-rhs-row label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 12px;
+        color: #666;
+      }
+
+      .pb-formula-rhs-row input {
+        flex: 1;
+        margin-right: 8px;
+      }
+
+      .pb-formula-rhs-row button {
+        width: auto;
+        margin: 0;
+        padding: 8px 12px;
+      }
     </style>
   </head>
   <body>

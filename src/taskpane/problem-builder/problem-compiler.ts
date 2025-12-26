@@ -12,6 +12,7 @@ import {
   dot,
   scalarVar,
   type Expr,
+  type Constraint as CvxConstraint,
 } from "cvxjs";
 import type {
   ProblemState,
@@ -20,6 +21,13 @@ import type {
   ObjectiveDefinition,
   ConstraintOperator,
 } from "./types.js";
+import {
+  parseAndAnalyze,
+  buildExpression,
+  buildConstraint as buildFormulaConstraint,
+  createBuildContext,
+  type BuildContext,
+} from "../../formula-mode/index.js";
 
 // Type for cvxjs constraint
 type Constraint = ReturnType<Expr["le"]>;
@@ -178,9 +186,14 @@ export class ProblemCompiler {
   }
 
   private async buildObjective(objDef: ObjectiveDefinition): Promise<Expr> {
+    // Handle formula mode
+    if (objDef.inputMode === "formula") {
+      return this.buildFormulaObjective(objDef);
+    }
+
     let objective: Expr | null = null;
 
-    // Add all linear terms
+    // Add all linear terms (card mode)
     for (const term of objDef.linearTerms) {
       if (!term.varName) {
         throw new Error("Linear term requires a variable");
@@ -243,7 +256,61 @@ export class ProblemCompiler {
     return objective;
   }
 
+  /**
+   * Build objective from formula mode
+   */
+  private async buildFormulaObjective(objDef: ObjectiveDefinition): Promise<Expr> {
+    if (!objDef.formulaText) {
+      throw new Error("Formula mode objective requires a formula");
+    }
+
+    // Build variable info for parsing
+    const variableInfo = Array.from(this.variables.entries()).map(([name, compiled]) => ({
+      name,
+      range: compiled.definition.dimensionRange || name,
+    }));
+
+    // Parse and analyze the formula
+    const result = await parseAndAnalyze(objDef.formulaText, {
+      variables: variableInfo,
+      readRange: this.readRange,
+      dcpContext: {
+        role: "objective",
+        sense: objDef.sense,
+      },
+    });
+
+    if (!result.dcp.valid) {
+      const errorMsg = result.dcp.errors[0]?.message || "Formula is not DCP-compliant";
+      throw new Error(`Objective formula error: ${errorMsg}`);
+    }
+
+    // Build the expression
+    const buildContext = this.createBuildContext();
+    return buildExpression(result.ast, buildContext);
+  }
+
+  /**
+   * Create build context for formula expression building
+   */
+  private createBuildContext(): BuildContext {
+    const variables: Array<{ name: string; dimension: number; expr: Expr }> = [];
+    for (const [name, compiled] of this.variables) {
+      variables.push({
+        name,
+        dimension: compiled.dimension,
+        expr: compiled.expr,
+      });
+    }
+    return createBuildContext(variables);
+  }
+
   private async buildConstraint(conDef: ConstraintDefinition): Promise<Constraint[]> {
+    // Handle formula mode
+    if (conDef.inputMode === "formula") {
+      return this.buildFormulaConstraint(conDef);
+    }
+
     if (!conDef.variableName) {
       throw new Error(`Constraint ${conDef.name || "(unnamed)"}: variable is required`);
     }
@@ -343,5 +410,80 @@ export class ProblemCompiler {
       case "==":
         return lhs.eq(rhs);
     }
+  }
+
+  /**
+   * Build constraint from formula mode
+   */
+  private async buildFormulaConstraint(conDef: ConstraintDefinition): Promise<Constraint[]> {
+    if (!conDef.formulaLhsText) {
+      throw new Error(`Constraint ${conDef.name || "(unnamed)"}: LHS formula is required`);
+    }
+
+    // Build variable info for parsing
+    const variableInfo = Array.from(this.variables.entries()).map(([name, compiled]) => ({
+      name,
+      range: compiled.definition.dimensionRange || name,
+    }));
+
+    // Parse LHS
+    const lhsResult = await parseAndAnalyze(conDef.formulaLhsText, {
+      variables: variableInfo,
+      readRange: this.readRange,
+      dcpContext: {
+        role: "constraint-lhs",
+        operator: conDef.operator,
+      },
+    });
+
+    if (!lhsResult.dcp.valid) {
+      const errorMsg = lhsResult.dcp.errors[0]?.message || "LHS formula is not DCP-compliant";
+      throw new Error(`Constraint ${conDef.name || "(unnamed)"} LHS error: ${errorMsg}`);
+    }
+
+    // Parse RHS (if it's a formula)
+    let rhsAst = null;
+    if (conDef.formulaRhsText && conDef.formulaRhsText.startsWith("=")) {
+      const rhsResult = await parseAndAnalyze(conDef.formulaRhsText, {
+        variables: variableInfo,
+        readRange: this.readRange,
+        dcpContext: {
+          role: "constraint-rhs",
+          operator: conDef.operator,
+        },
+      });
+
+      if (!rhsResult.dcp.valid) {
+        const errorMsg = rhsResult.dcp.errors[0]?.message || "RHS formula is not DCP-compliant";
+        throw new Error(`Constraint ${conDef.name || "(unnamed)"} RHS error: ${errorMsg}`);
+      }
+      rhsAst = rhsResult.ast;
+    }
+
+    // Build the constraint expression
+    const buildContext = this.createBuildContext();
+    const lhsExpr = buildExpression(lhsResult.ast, buildContext);
+
+    let rhsExpr: Expr | number;
+    if (rhsAst) {
+      rhsExpr = buildExpression(rhsAst, buildContext);
+    } else if (conDef.formulaRhsText) {
+      // Try to parse as number
+      const numValue = parseFloat(conDef.formulaRhsText);
+      if (isNaN(numValue)) {
+        throw new Error(`Constraint ${conDef.name || "(unnamed)"}: RHS must be a formula or number`);
+      }
+      rhsExpr = numValue;
+    } else {
+      // Read from RHS cell if specified
+      if (conDef.formulaRhsCell) {
+        const rhsData = await this.readRange(conDef.formulaRhsCell);
+        rhsExpr = rhsData[0]?.[0] ?? 0;
+      } else {
+        throw new Error(`Constraint ${conDef.name || "(unnamed)"}: RHS is required`);
+      }
+    }
+
+    return [this.makeConstraint(lhsExpr, conDef.operator, rhsExpr)];
   }
 }

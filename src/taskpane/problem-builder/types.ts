@@ -2,7 +2,12 @@
  * Type definitions for the Problem Builder
  */
 
+import type { Curvature } from '../../formula-mode/dcp/types';
+
 export type VarType = "continuous" | "integer" | "binary";
+
+/** Input mode for objective and constraints */
+export type InputMode = "cards" | "formula";
 
 export interface VariableDefinition {
   id: string;
@@ -25,6 +30,11 @@ export type ConstraintExprType =
 export interface ConstraintDefinition {
   id: string;
   name: string;
+
+  // Input mode: cards (structured) or formula (Excel formula)
+  inputMode: InputMode;
+
+  // === Card mode fields ===
   exprType: ConstraintExprType;
   variableName: string;
   operator: ConstraintOperator;
@@ -32,6 +42,16 @@ export interface ConstraintDefinition {
   rhsScalar: number;
   rhsRange: string;
   lhsRange?: string; // For linear constraints (A matrix)
+
+  // === Formula mode fields ===
+  formulaLhsCell?: string;     // Cell containing LHS formula (e.g., "G2")
+  formulaLhsText?: string;     // The formula text (e.g., "=SUM(B2:B6)")
+  formulaRhsCell?: string;     // Cell containing RHS (e.g., "H2")
+  formulaRhsText?: string;     // The RHS formula/value
+  formulaCurvature?: Curvature; // Parsed curvature
+  formulaParsedDesc?: string;  // Human-readable description (e.g., "sum(weights) == 1")
+  formulaDcpValid?: boolean;   // DCP validation result
+  formulaError?: string;       // Error message if invalid
 }
 
 export type ObjectiveSense = "minimize" | "maximize";
@@ -50,8 +70,21 @@ export interface QuadraticTerm {
 
 export interface ObjectiveDefinition {
   sense: ObjectiveSense;
+
+  // Input mode: cards (structured) or formula (Excel formula)
+  inputMode: InputMode;
+
+  // === Card mode fields ===
   linearTerms: LinearTerm[];
   quadraticTerms: QuadraticTerm[];
+
+  // === Formula mode fields ===
+  formulaCell?: string;        // Cell containing objective formula (e.g., "F10")
+  formulaText?: string;        // The formula text (e.g., "=SUMPRODUCT(A1:A5, x)")
+  formulaCurvature?: Curvature; // Parsed curvature
+  formulaParsedDesc?: string;  // Human-readable description (e.g., "dot(costs, weights)")
+  formulaDcpValid?: boolean;   // DCP validation result
+  formulaError?: string;       // Error message if invalid
 }
 
 export interface ProblemState {
@@ -98,6 +131,7 @@ export function createDefaultConstraint(): ConstraintDefinition {
   return {
     id: crypto.randomUUID(),
     name: "",
+    inputMode: "cards",
     exprType: "variable",
     variableName: "",
     operator: ">=",
@@ -130,6 +164,7 @@ export function createDefaultQuadraticTerm(): QuadraticTerm {
 export function createDefaultObjective(): ObjectiveDefinition {
   return {
     sense: "minimize",
+    inputMode: "cards",
     linearTerms: [],
     quadraticTerms: [],
   };

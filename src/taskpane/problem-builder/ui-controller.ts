@@ -13,6 +13,7 @@ import type {
   LinearTerm,
   QuadraticTerm,
   SolveResult,
+  InputMode,
 } from "./types.js";
 import {
   createDefaultProblemState,
@@ -28,6 +29,7 @@ import {
 } from "./ui-components.js";
 import { ProblemCompiler } from "./problem-compiler.js";
 import { mapSolution, roundValues } from "./result-mapper.js";
+import { parseAndAnalyze } from "../../formula-mode/index.js";
 
 // Excel API types
 declare const Excel: {
@@ -51,6 +53,7 @@ interface ExcelWorksheet {
 interface ExcelRange {
   address: string;
   values: (number | string)[][];
+  formulas: string[][];
   load: (props: string) => void;
   getCell: (row: number, col: number) => ExcelRange;
   getResizedRange: (deltaRows: number, deltaCols: number) => ExcelRange;
@@ -173,6 +176,162 @@ export class ProblemBuilderController {
   }
 
   /**
+   * Read formula from a cell
+   */
+  private async readFormula(address: string): Promise<string> {
+    return Excel.run(async (context) => {
+      const sheet = context.workbook.worksheets.getActiveWorksheet();
+      const range = sheet.getRange(address);
+      range.load("formulas");
+      await context.sync();
+      return range.formulas[0]?.[0] ?? "";
+    });
+  }
+
+  /**
+   * Select a formula cell from Excel and read its formula
+   */
+  private async selectFormulaCell(inputId: string): Promise<void> {
+    try {
+      await Excel.run(async (context) => {
+        const range = context.workbook.getSelectedRange();
+        range.load("address,formulas");
+        await context.sync();
+
+        const input = document.getElementById(inputId) as HTMLInputElement;
+        if (input) {
+          const address = range.address.includes("!")
+            ? range.address.split("!")[1]
+            : range.address;
+          input.value = address;
+          // Trigger change event to parse the formula
+          input.dispatchEvent(new Event("change"));
+        }
+      });
+    } catch (error) {
+      this.setStatus(`Error selecting cell: ${error}`, "error");
+    }
+  }
+
+  /**
+   * Get variable info for formula parsing
+   */
+  private getVariableInfo(): Array<{ name: string; range: string }> {
+    return this.state.variables
+      .filter((v) => v.name.trim() && v.dimensionRange.trim())
+      .map((v) => ({ name: v.name, range: v.dimensionRange }));
+  }
+
+  /**
+   * Parse and validate objective formula
+   */
+  private async parseObjectiveFormula(cell: string): Promise<void> {
+    if (!cell) {
+      this.state.objective.formulaText = undefined;
+      this.state.objective.formulaCurvature = undefined;
+      this.state.objective.formulaParsedDesc = undefined;
+      this.state.objective.formulaDcpValid = undefined;
+      this.state.objective.formulaError = undefined;
+      this.renderObjective();
+      return;
+    }
+
+    try {
+      // Read formula from cell
+      const formula = await this.readFormula(cell);
+      this.state.objective.formulaText = formula;
+
+      if (!formula || !formula.startsWith("=")) {
+        // Not a formula, treat as constant
+        this.state.objective.formulaCurvature = "constant";
+        this.state.objective.formulaParsedDesc = "constant value";
+        this.state.objective.formulaDcpValid = true;
+        this.state.objective.formulaError = undefined;
+        this.renderObjective();
+        return;
+      }
+
+      // Parse and analyze
+      const result = await parseAndAnalyze(formula, {
+        variables: this.getVariableInfo(),
+        readRange: (addr) => this.readRange(addr),
+        dcpContext: {
+          role: "objective",
+          sense: this.state.objective.sense,
+        },
+      });
+
+      this.state.objective.formulaCurvature = result.dcp.curvature;
+      this.state.objective.formulaParsedDesc = result.description;
+      this.state.objective.formulaDcpValid = result.dcp.valid;
+      this.state.objective.formulaError = result.dcp.errors[0]?.message;
+
+      this.renderObjective();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.state.objective.formulaDcpValid = false;
+      this.state.objective.formulaError = msg;
+      this.renderObjective();
+    }
+  }
+
+  /**
+   * Parse and validate constraint formula
+   */
+  private async parseConstraintFormula(id: string, cell: string): Promise<void> {
+    const conDef = this.state.constraints.find((c) => c.id === id);
+    if (!conDef) return;
+
+    if (!cell) {
+      conDef.formulaLhsText = undefined;
+      conDef.formulaLhsCurvature = undefined;
+      conDef.formulaLhsParsedDesc = undefined;
+      conDef.formulaLhsDcpValid = undefined;
+      conDef.formulaLhsError = undefined;
+      this.renderConstraints();
+      return;
+    }
+
+    try {
+      // Read formula from cell
+      const formula = await this.readFormula(cell);
+      conDef.formulaLhsText = formula;
+
+      if (!formula || !formula.startsWith("=")) {
+        // Not a formula, treat as constant
+        conDef.formulaLhsCurvature = "constant";
+        conDef.formulaLhsParsedDesc = "constant value";
+        conDef.formulaLhsDcpValid = true;
+        conDef.formulaLhsError = undefined;
+        this.renderConstraints();
+        return;
+      }
+
+      // Parse and analyze
+      const result = await parseAndAnalyze(formula, {
+        variables: this.getVariableInfo(),
+        readRange: (addr) => this.readRange(addr),
+        dcpContext: {
+          role: "constraint-lhs",
+          operator: conDef.operator,
+        },
+      });
+
+      conDef.formulaLhsCurvature = result.dcp.curvature;
+      conDef.formulaLhsParsedDesc = result.description;
+      conDef.formulaLhsDcpValid = result.dcp.valid;
+      conDef.formulaLhsError = result.dcp.errors[0]?.message;
+
+      this.renderConstraints();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      conDef.formulaLhsDcpValid = false;
+      conDef.formulaLhsError = msg;
+      this.renderConstraints();
+    }
+  }
+
+  /**
    * Ensure WASM solver is loaded
    */
   private async ensureWasm(): Promise<void> {
@@ -212,13 +371,13 @@ export class ProblemBuilderController {
       const name = this.state.variables[idx].name;
       this.state.variables.splice(idx, 1);
 
-      // Clear references to this variable
-      if (this.state.objective.linearVarName === name) {
-        this.state.objective.linearVarName = "";
-      }
-      if (this.state.objective.quadraticVarName === name) {
-        this.state.objective.quadraticVarName = "";
-      }
+      // Clear references to this variable in objective terms
+      this.state.objective.linearTerms = this.state.objective.linearTerms.filter(
+        (term) => term.varName !== name
+      );
+      this.state.objective.quadraticTerms = this.state.objective.quadraticTerms.filter(
+        (term) => term.varName !== name
+      );
       for (const con of this.state.constraints) {
         if (con.variableName === name) {
           con.variableName = "";
@@ -266,6 +425,16 @@ export class ProblemBuilderController {
     const conDef = this.state.constraints.find((c) => c.id === id);
     if (conDef) {
       Object.assign(conDef, updates);
+
+      // If formula LHS cell changed, parse it
+      if (updates.formulaLhsCell !== undefined) {
+        this.parseConstraintFormula(id, updates.formulaLhsCell);
+      }
+
+      // If input mode changed, re-render
+      if (updates.inputMode !== undefined) {
+        this.renderConstraints();
+      }
     }
   }
 
@@ -289,7 +458,8 @@ export class ProblemBuilderController {
         names,
         (id, updates) => this.updateConstraint(id, updates),
         (id) => this.removeConstraint(id),
-        (inputId) => this.selectRange(inputId)
+        (inputId) => this.selectRange(inputId),
+        (inputId) => this.selectFormulaCell(inputId)
       );
       this.constraintsContainer.appendChild(card);
     }
@@ -351,6 +521,17 @@ export class ProblemBuilderController {
     }
   }
 
+  updateObjectiveMode(mode: InputMode): void {
+    this.state.objective.inputMode = mode;
+    this.renderObjective();
+  }
+
+  updateObjectiveFormulaCell(cell: string): void {
+    this.state.objective.formulaCell = cell;
+    // Parse formula asynchronously
+    this.parseObjectiveFormula(cell);
+  }
+
   renderObjective(): void {
     if (!this.objectiveContainer) return;
     this.objectiveContainer.innerHTML = "";
@@ -359,6 +540,9 @@ export class ProblemBuilderController {
 
     const section = renderObjectiveSection(this.state.objective, names, {
       onSenseChange: (sense) => this.updateObjectiveSense(sense),
+      onModeChange: (mode) => this.updateObjectiveMode(mode),
+      onFormulaCellChange: (cell) => this.updateObjectiveFormulaCell(cell),
+      onSelectFormulaCell: (inputId) => this.selectFormulaCell(inputId),
       onAddLinear: () => this.addLinearTerm(),
       onUpdateLinear: (id, updates) => this.updateLinearTerm(id, updates),
       onRemoveLinear: (id) => this.removeLinearTerm(id),

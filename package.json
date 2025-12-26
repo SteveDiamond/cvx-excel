@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "cvxjs": "^0.1.2"
+    "cvxjs": "^0.1.2",
+    "excel-formula-ast": "^1.1.1",
+    "excel-formula-tokenizer": "^3.0.0"
   },
   "devDependencies": {
     "@types/office-js": "^1.0.377",

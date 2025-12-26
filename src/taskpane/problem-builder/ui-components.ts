@@ -13,7 +13,9 @@ import type {
   VarType,
   ConstraintOperator,
   ConstraintExprType,
+  InputMode,
 } from "./types.js";
+import { getCurvatureBadge, getCurvatureClass } from "../../formula-mode/index.js";
 
 /**
  * Create a card container element
@@ -203,6 +205,145 @@ export function createFieldRow(...children: HTMLElement[]): HTMLDivElement {
 }
 
 /**
+ * Create a mode toggle (Formula/Cards)
+ */
+export function createModeToggle(
+  id: string,
+  selected: InputMode,
+  onChange: (mode: InputMode) => void
+): HTMLDivElement {
+  const container = document.createElement("div");
+  container.className = "pb-mode-toggle";
+
+  const formulaBtn = document.createElement("button");
+  formulaBtn.type = "button";
+  formulaBtn.id = `${id}-formula`;
+  formulaBtn.className = selected === "formula" ? "active" : "";
+  formulaBtn.textContent = "Formula";
+  formulaBtn.onclick = () => {
+    formulaBtn.className = "active";
+    cardsBtn.className = "";
+    onChange("formula");
+  };
+  container.appendChild(formulaBtn);
+
+  const cardsBtn = document.createElement("button");
+  cardsBtn.type = "button";
+  cardsBtn.id = `${id}-cards`;
+  cardsBtn.className = selected === "cards" ? "active" : "";
+  cardsBtn.textContent = "Cards";
+  cardsBtn.onclick = () => {
+    cardsBtn.className = "active";
+    formulaBtn.className = "";
+    onChange("cards");
+  };
+  container.appendChild(cardsBtn);
+
+  return container;
+}
+
+/**
+ * Create a formula input with cell selection and DCP indicator
+ */
+export function createFormulaInput(
+  id: string,
+  label: string,
+  cellValue: string,
+  formulaText: string,
+  parsedDesc: string | undefined,
+  curvature: string | undefined,
+  dcpValid: boolean | undefined,
+  errorMessage: string | undefined,
+  onSelectCell: (inputId: string) => void,
+  onCellChange: (cell: string) => void
+): HTMLDivElement {
+  const container = document.createElement("div");
+  container.className = "pb-formula-input";
+
+  // Label
+  const labelEl = document.createElement("label");
+  labelEl.textContent = label;
+  container.appendChild(labelEl);
+
+  // Cell input row
+  const inputRow = document.createElement("div");
+  inputRow.className = "pb-formula-input-row";
+
+  const cellInput = document.createElement("input");
+  cellInput.type = "text";
+  cellInput.id = `${id}-cell`;
+  cellInput.className = "pb-formula-cell";
+  cellInput.placeholder = "e.g., F10";
+  cellInput.value = cellValue || "";
+  cellInput.addEventListener("change", () => {
+    onCellChange(cellInput.value.trim());
+  });
+  inputRow.appendChild(cellInput);
+
+  const selectBtn = document.createElement("button");
+  selectBtn.type = "button";
+  selectBtn.className = "secondary";
+  selectBtn.textContent = "Select Cell";
+  selectBtn.onclick = (e) => {
+    e.preventDefault();
+    onSelectCell(`${id}-cell`);
+  };
+  inputRow.appendChild(selectBtn);
+
+  container.appendChild(inputRow);
+
+  // Formula display
+  const formulaDisplay = document.createElement("div");
+  formulaDisplay.className = "pb-formula-display";
+  formulaDisplay.id = `${id}-formula-display`;
+  if (formulaText) {
+    formulaDisplay.innerHTML = `<code>${escapeHtml(formulaText)}</code>`;
+  } else {
+    formulaDisplay.innerHTML = '<span class="placeholder">Select a cell to read its formula</span>';
+  }
+  container.appendChild(formulaDisplay);
+
+  // Parsed result display
+  if (parsedDesc && curvature) {
+    const resultDisplay = document.createElement("div");
+    resultDisplay.className = "pb-formula-result";
+    resultDisplay.innerHTML = `
+      <span class="parsed-expr">${escapeHtml(parsedDesc)}</span>
+      <span class="curvature-badge ${getCurvatureClass(curvature as 'constant' | 'affine' | 'convex' | 'concave' | 'unknown')}">${getCurvatureBadge(curvature as 'constant' | 'affine' | 'convex' | 'concave' | 'unknown')}</span>
+    `;
+    container.appendChild(resultDisplay);
+  }
+
+  // DCP status indicator
+  const statusIndicator = document.createElement("div");
+  statusIndicator.className = "pb-dcp-status";
+  statusIndicator.id = `${id}-dcp-status`;
+
+  if (dcpValid === true) {
+    statusIndicator.classList.add("dcp-valid");
+    statusIndicator.innerHTML = "✓ DCP Valid";
+  } else if (dcpValid === false) {
+    statusIndicator.classList.add("dcp-invalid");
+    statusIndicator.innerHTML = `✗ ${escapeHtml(errorMessage || "Not DCP compliant")}`;
+  } else if (cellValue && !formulaText) {
+    statusIndicator.classList.add("dcp-pending");
+    statusIndicator.innerHTML = "⋯ Reading formula...";
+  }
+  container.appendChild(statusIndicator);
+
+  return container;
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+/**
  * Render a variable card
  */
 export function renderVariableCard(
@@ -317,7 +458,8 @@ export function renderConstraintCard(
   variableNames: string[],
   onUpdate: (id: string, updates: Partial<ConstraintDefinition>) => void,
   onRemove: (id: string) => void,
-  onSelectRange: (inputId: string) => void
+  onSelectRange: (inputId: string) => void,
+  onSelectFormulaCell?: (inputId: string) => void
 ): HTMLDivElement {
   const card = createCard(`con-${conDef.id}`, () => onRemove(conDef.id));
 
@@ -328,6 +470,107 @@ export function renderConstraintCard(
     onUpdate(conDef.id, { name: nameInput.value.trim() });
   });
   card.appendChild(nameField);
+
+  // Mode toggle (Formula / Cards)
+  const modeToggle = createModeToggle(`con-mode-${conDef.id}`, conDef.inputMode, (mode) => {
+    onUpdate(conDef.id, { inputMode: mode });
+    updateModeVisibility();
+  });
+  card.appendChild(modeToggle);
+
+  // Formula mode container
+  const formulaContainer = document.createElement("div");
+  formulaContainer.id = `con-formula-container-${conDef.id}`;
+
+  // LHS formula input
+  const lhsFormulaInput = createFormulaInput(
+    `con-lhs-formula-${conDef.id}`,
+    "LHS Formula Cell",
+    conDef.formulaLhsCell || "",
+    conDef.formulaLhsText || "",
+    conDef.formulaLhsParsedDesc,
+    conDef.formulaLhsCurvature,
+    conDef.formulaLhsDcpValid,
+    conDef.formulaLhsError,
+    onSelectFormulaCell || onSelectRange,
+    (cell) => onUpdate(conDef.id, { formulaLhsCell: cell })
+  );
+  formulaContainer.appendChild(lhsFormulaInput);
+
+  // Operator (shared between modes)
+  const formulaOpSelect = createSelect<ConstraintOperator>(
+    "Operator",
+    `con-formula-op-${conDef.id}`,
+    [
+      { value: "<=", label: "≤" },
+      { value: ">=", label: "≥" },
+      { value: "==", label: "=" },
+    ],
+    conDef.operator
+  );
+  const formulaOpEl = formulaOpSelect.querySelector("select")!;
+  formulaOpEl.addEventListener("change", () => {
+    onUpdate(conDef.id, { operator: formulaOpEl.value as ConstraintOperator });
+  });
+  formulaContainer.appendChild(formulaOpSelect);
+
+  // RHS formula input (simpler - just cell or constant)
+  const rhsRow = document.createElement("div");
+  rhsRow.className = "pb-formula-rhs-row";
+
+  const rhsLabel = document.createElement("label");
+  rhsLabel.textContent = "RHS (cell or value)";
+  rhsRow.appendChild(rhsLabel);
+
+  const rhsInput = document.createElement("input");
+  rhsInput.type = "text";
+  rhsInput.id = `con-formula-rhs-${conDef.id}`;
+  rhsInput.placeholder = "e.g., 1 or H2";
+  rhsInput.value = conDef.formulaRhsText || conDef.formulaRhsCell || "";
+  rhsInput.addEventListener("change", () => {
+    const val = rhsInput.value.trim();
+    // Check if it's a cell reference or a number
+    if (/^[A-Z]+[0-9]+$/i.test(val)) {
+      onUpdate(conDef.id, { formulaRhsCell: val, formulaRhsText: undefined });
+    } else {
+      onUpdate(conDef.id, { formulaRhsText: val, formulaRhsCell: undefined });
+    }
+  });
+  rhsRow.appendChild(rhsInput);
+
+  const rhsSelectBtn = document.createElement("button");
+  rhsSelectBtn.type = "button";
+  rhsSelectBtn.className = "secondary";
+  rhsSelectBtn.textContent = "Select";
+  rhsSelectBtn.onclick = (e) => {
+    e.preventDefault();
+    (onSelectFormulaCell || onSelectRange)(`con-formula-rhs-${conDef.id}`);
+  };
+  rhsRow.appendChild(rhsSelectBtn);
+
+  formulaContainer.appendChild(rhsRow);
+
+  // DCP status for constraint
+  if (conDef.formulaLhsDcpValid !== undefined) {
+    const statusIndicator = document.createElement("div");
+    statusIndicator.className = "pb-dcp-status";
+
+    if (conDef.formulaLhsDcpValid && conDef.formulaRhsDcpValid !== false) {
+      statusIndicator.classList.add("dcp-valid");
+      statusIndicator.innerHTML = "✓ DCP Valid Constraint";
+    } else {
+      statusIndicator.classList.add("dcp-invalid");
+      const error = conDef.formulaLhsError || conDef.formulaRhsError || "Not DCP compliant";
+      statusIndicator.innerHTML = `✗ ${escapeHtml(error)}`;
+    }
+    formulaContainer.appendChild(statusIndicator);
+  }
+
+  card.appendChild(formulaContainer);
+
+  // Cards mode container
+  const cardsContainer = document.createElement("div");
+  cardsContainer.id = `con-cards-container-${conDef.id}`;
 
   // Expression type
   const exprTypeSelect = createSelect<ConstraintExprType>(
@@ -340,7 +583,7 @@ export function renderConstraintCard(
     ],
     conDef.exprType
   );
-  card.appendChild(exprTypeSelect);
+  cardsContainer.appendChild(exprTypeSelect);
 
   // Variable selection
   const varOptions = variableNames.map((name) => ({ value: name, label: name }));
@@ -357,7 +600,7 @@ export function renderConstraintCard(
   varEl.addEventListener("change", () => {
     onUpdate(conDef.id, { variableName: varEl.value });
   });
-  card.appendChild(varSelect);
+  cardsContainer.appendChild(varSelect);
 
   // LHS Range (for linear constraints)
   const lhsField = createRangeInput(
@@ -372,7 +615,7 @@ export function renderConstraintCard(
   lhsInput.addEventListener("change", () => {
     onUpdate(conDef.id, { lhsRange: lhsInput.value });
   });
-  card.appendChild(lhsField);
+  cardsContainer.appendChild(lhsField);
 
   // Operator
   const opSelect = createSelect<ConstraintOperator>(
@@ -389,7 +632,7 @@ export function renderConstraintCard(
   opEl.addEventListener("change", () => {
     onUpdate(conDef.id, { operator: opEl.value as ConstraintOperator });
   });
-  card.appendChild(opSelect);
+  cardsContainer.appendChild(opSelect);
 
   // RHS mode
   const rhsModeSelect = createSelect<"scalar" | "range">(
@@ -401,7 +644,7 @@ export function renderConstraintCard(
     ],
     conDef.rhsMode
   );
-  card.appendChild(rhsModeSelect);
+  cardsContainer.appendChild(rhsModeSelect);
 
   // RHS scalar
   const rhsScalarField = createNumberInput("Value", `con-rhsscalar-${conDef.id}`, conDef.rhsScalar);
@@ -410,7 +653,7 @@ export function renderConstraintCard(
   rhsScalarInput.addEventListener("change", () => {
     onUpdate(conDef.id, { rhsScalar: parseFloat(rhsScalarInput.value) || 0 });
   });
-  card.appendChild(rhsScalarField);
+  cardsContainer.appendChild(rhsScalarField);
 
   // RHS range
   const rhsRangeField = createRangeInput(
@@ -425,13 +668,15 @@ export function renderConstraintCard(
   rhsRangeInput.addEventListener("change", () => {
     onUpdate(conDef.id, { rhsRange: rhsRangeInput.value });
   });
-  card.appendChild(rhsRangeField);
+  cardsContainer.appendChild(rhsRangeField);
 
-  // Update visibility based on expression type and RHS mode
+  card.appendChild(cardsContainer);
+
+  // Update visibility based on expression type, RHS mode, and input mode
   const exprTypeEl = exprTypeSelect.querySelector("select")!;
   const rhsModeEl = rhsModeSelect.querySelector("select")!;
 
-  const updateVisibility = () => {
+  const updateCardsModeVisibility = () => {
     const exprType = exprTypeEl.value as ConstraintExprType;
     const rhsMode = rhsModeEl.value as "scalar" | "range";
 
@@ -443,17 +688,26 @@ export function renderConstraintCard(
     rhsRangeField.style.display = rhsMode === "range" ? "block" : "none";
   };
 
+  const updateModeVisibility = () => {
+    const mode = conDef.inputMode;
+    formulaContainer.style.display = mode === "formula" ? "block" : "none";
+    cardsContainer.style.display = mode === "cards" ? "block" : "none";
+    if (mode === "cards") {
+      updateCardsModeVisibility();
+    }
+  };
+
   exprTypeEl.addEventListener("change", () => {
     onUpdate(conDef.id, { exprType: exprTypeEl.value as ConstraintExprType });
-    updateVisibility();
+    updateCardsModeVisibility();
   });
 
   rhsModeEl.addEventListener("change", () => {
     onUpdate(conDef.id, { rhsMode: rhsModeEl.value as "scalar" | "range" });
-    updateVisibility();
+    updateCardsModeVisibility();
   });
 
-  updateVisibility();
+  updateModeVisibility();
 
   return card;
 }
@@ -558,6 +812,9 @@ export function renderObjectiveSection(
   variableNames: string[],
   callbacks: {
     onSenseChange: (sense: "minimize" | "maximize") => void;
+    onModeChange: (mode: InputMode) => void;
+    onFormulaCellChange: (cell: string) => void;
+    onSelectFormulaCell: (inputId: string) => void;
     onAddLinear: () => void;
     onUpdateLinear: (id: string, updates: Partial<LinearTerm>) => void;
     onRemoveLinear: (id: string) => void;
@@ -569,6 +826,10 @@ export function renderObjectiveSection(
 ): HTMLDivElement {
   const section = document.createElement("div");
   section.className = "pb-section";
+
+  // Mode toggle (Formula / Cards)
+  const modeToggle = createModeToggle("pb-obj-mode", objDef.inputMode, callbacks.onModeChange);
+  section.appendChild(modeToggle);
 
   // Sense
   const senseSelect = createSelect<"minimize" | "maximize">(
@@ -586,6 +847,31 @@ export function renderObjectiveSection(
   });
   section.appendChild(senseSelect);
 
+  // Formula mode container
+  const formulaContainer = document.createElement("div");
+  formulaContainer.id = "pb-obj-formula-container";
+  formulaContainer.style.display = objDef.inputMode === "formula" ? "block" : "none";
+
+  const formulaInput = createFormulaInput(
+    "pb-obj",
+    "Objective Cell",
+    objDef.formulaCell || "",
+    objDef.formulaText || "",
+    objDef.formulaParsedDesc,
+    objDef.formulaCurvature,
+    objDef.formulaDcpValid,
+    objDef.formulaError,
+    callbacks.onSelectFormulaCell,
+    callbacks.onFormulaCellChange
+  );
+  formulaContainer.appendChild(formulaInput);
+  section.appendChild(formulaContainer);
+
+  // Cards mode container
+  const cardsContainer = document.createElement("div");
+  cardsContainer.id = "pb-obj-cards-container";
+  cardsContainer.style.display = objDef.inputMode === "cards" ? "block" : "none";
+
   // Linear terms section
   const linearHeader = document.createElement("div");
   linearHeader.className = "pb-section-header";
@@ -600,7 +886,7 @@ export function renderObjectiveSection(
     callbacks.onAddLinear();
   };
   linearHeader.appendChild(addLinearBtn);
-  section.appendChild(linearHeader);
+  cardsContainer.appendChild(linearHeader);
 
   const linearList = document.createElement("div");
   linearList.id = "pb-linear-terms";
@@ -614,7 +900,7 @@ export function renderObjectiveSection(
     );
     linearList.appendChild(card);
   }
-  section.appendChild(linearList);
+  cardsContainer.appendChild(linearList);
 
   // Quadratic terms section
   const quadHeader = document.createElement("div");
@@ -631,7 +917,7 @@ export function renderObjectiveSection(
     callbacks.onAddQuadratic();
   };
   quadHeader.appendChild(addQuadBtn);
-  section.appendChild(quadHeader);
+  cardsContainer.appendChild(quadHeader);
 
   const quadList = document.createElement("div");
   quadList.id = "pb-quad-terms";
@@ -645,7 +931,9 @@ export function renderObjectiveSection(
     );
     quadList.appendChild(card);
   }
-  section.appendChild(quadList);
+  cardsContainer.appendChild(quadList);
+
+  section.appendChild(cardsContainer);
 
   return section;
 }

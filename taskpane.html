@@ -184,6 +184,7 @@
     <div class="tab-container">
       <button class="tab active" data-tab="lp">LP</button>
       <button class="tab" data-tab="qp">QP</button>
+      <button class="tab" data-tab="milp">MILP</button>
       <button class="tab" data-tab="portfolio">Portfolio</button>
     </div>
 
@@ -264,6 +265,53 @@
         </div>
 
         <button onclick="solveQP()">Solve QP</button>
+      </div>
+    </div>
+
+    <!-- Mixed-Integer Linear Programming Tab -->
+    <div id="milp-tab" class="tab-content">
+      <div class="section">
+        <h2>Mixed-Integer Linear Program</h2>
+        <p class="help-text">minimize c'x subject to Ax ≤ b, with integer/binary variables</p>
+
+        <label for="milp-c">Objective (c):</label>
+        <div class="range-input">
+          <input type="text" id="milp-c" placeholder="e.g., A1:A5" />
+          <button class="secondary" onclick="selectRange('milp-c')">Select</button>
+        </div>
+
+        <label for="milp-A">Constraint Matrix (A):</label>
+        <div class="range-input">
+          <input type="text" id="milp-A" placeholder="e.g., B1:F3" />
+          <button class="secondary" onclick="selectRange('milp-A')">Select</button>
+        </div>
+
+        <label for="milp-b">Constraint RHS (b):</label>
+        <div class="range-input">
+          <input type="text" id="milp-b" placeholder="e.g., G1:G3" />
+          <button class="secondary" onclick="selectRange('milp-b')">Select</button>
+        </div>
+
+        <label for="milp-types">Variable Types:</label>
+        <div class="range-input">
+          <input type="text" id="milp-types" placeholder="e.g., H1:H5 (C, I, or B)" />
+          <button class="secondary" onclick="selectRange('milp-types')">Select</button>
+        </div>
+        <p class="help-text">C = Continuous, I = Integer, B = Binary (0/1)</p>
+
+        <label for="milp-sense">Sense:</label>
+        <select id="milp-sense">
+          <option value="min">Minimize</option>
+          <option value="max">Maximize</option>
+        </select>
+
+        <label for="milp-output">Output Cell:</label>
+        <div class="range-input">
+          <input type="text" id="milp-output" placeholder="e.g., I1" />
+          <button class="secondary" onclick="selectRange('milp-output')">Select</button>
+        </div>
+
+        <button onclick="solveMILP()">Solve MILP</button>
       </div>
     </div>
 

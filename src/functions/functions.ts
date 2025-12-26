@@ -11,6 +11,10 @@ import {
   quadForm,
   dot,
   loadWasm,
+  scalarVar,
+  InfeasibleError,
+  UnboundedError,
+  DcpError,
 } from "cvxjs";
 import {
   rangeToVector,
@@ -31,6 +35,25 @@ async function ensureWasm(): Promise<void> {
     wasmReady = true;
   });
   return wasmInitPromise;
+}
+
+/**
+ * Format errors with business-friendly messages
+ */
+function formatError(error: unknown): string {
+  if (error instanceof InfeasibleError) {
+    return "No Solution: Your constraints cannot all be satisfied simultaneously. Try relaxing some constraints.";
+  }
+  if (error instanceof UnboundedError) {
+    return "Unbounded: The objective can be improved indefinitely. Check that you have enough constraints.";
+  }
+  if (error instanceof DcpError) {
+    return `Invalid Problem Structure: ${error.message}. The problem may not be convex.`;
+  }
+  if (error instanceof Error) {
+    return `Error: ${error.message}`;
+  }
+  return `Error: ${String(error)}`;
 }
 
 /**
@@ -105,8 +128,7 @@ export async function LP(
 
     return solutionToColumn(optVal, solutionArray);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return [[`Error: ${msg}`]] as unknown as number[][];
+    return [[formatError(error)]] as unknown as number[][];
   }
 }
 
@@ -171,8 +193,7 @@ export async function QP(
 
     return solutionToColumn(optVal, solutionArray);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return [[`Error: ${msg}`]] as unknown as number[][];
+    return [[formatError(error)]] as unknown as number[][];
   }
 }
 
@@ -241,8 +262,194 @@ export async function PORTFOLIO(
 
     return solutionToColumn(optExpectedReturn, weightsArray);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return [[`Error: ${msg}`]] as unknown as number[][];
+    return [[formatError(error)]] as unknown as number[][];
+  }
+}
+
+/**
+ * Solve a Mixed-Integer Linear Program
+ *
+ * minimize (or maximize) c'x
+ * subject to: Ax <= b
+ * with variable types: C=continuous, I=integer, B=binary
+ *
+ * @customfunction
+ * @param c Objective coefficients (vector)
+ * @param A Constraint matrix
+ * @param b Constraint RHS (vector)
+ * @param varTypes Variable types: "C" (continuous), "I" (integer), "B" (binary)
+ * @param sense "min" or "max" (default: "min")
+ * @returns Optimal value and solution [opt_val, x0, x1, ...]
+ */
+export async function MILP(
+  c: number[][],
+  A: number[][],
+  b: number[][],
+  varTypes: string[][],
+  sense?: string
+): Promise<number[][]> {
+  try {
+    await ensureWasm();
+
+    const n = getVectorLength(c);
+    const cVec = rangeToVector(c);
+    const AMat = rangeToMatrix(A);
+    const bVec = rangeToVector(b);
+
+    // Parse variable types
+    const types = varTypes.flat().map((t) => t?.toUpperCase() || "C");
+
+    if (types.length !== n) {
+      return [[`Error: Variable types (${types.length}) must match objective coefficients (${n})`]] as unknown as number[][];
+    }
+
+    // Create individual scalar variables with appropriate options
+    const vars: ReturnType<typeof scalarVar>[] = [];
+    for (let i = 0; i < n; i++) {
+      const type = types[i];
+      if (type === "B") {
+        vars.push(scalarVar({ binary: true }));
+      } else if (type === "I") {
+        vars.push(scalarVar({ integer: true, nonneg: true }));
+      } else {
+        // Continuous, non-negative
+        vars.push(scalarVar({ nonneg: true }));
+      }
+    }
+
+    // Build objective: sum of c[i] * x[i]
+    let objective = vars[0].mul(cVec[0]);
+    for (let i = 1; i < n; i++) {
+      objective = objective.add(vars[i].mul(cVec[i]));
+    }
+
+    // Negate for maximization
+    if (sense?.toLowerCase() === "max") {
+      objective = objective.neg();
+    }
+
+    // Constraints: Ax <= b (sum of A[i][j] * x[j] <= b[i])
+    const constraints = [];
+    for (let i = 0; i < AMat.length; i++) {
+      let rowExpr = vars[0].mul(AMat[i][0]);
+      for (let j = 1; j < n; j++) {
+        rowExpr = rowExpr.add(vars[j].mul(AMat[i][j]));
+      }
+      constraints.push(rowExpr.le(bVec[i]));
+    }
+
+    // Solve
+    const result = await Problem.minimize(objective)
+      .subjectTo(constraints)
+      .solve();
+
+    // Extract solution from individual variables
+    const solutionArray: number[] = [];
+    for (const v of vars) {
+      const val = result.valueOf(v);
+      const num = Array.isArray(val) ? val[0] : (typeof val === 'object' ? Object.values(val)[0] : val);
+      solutionArray.push(num as number);
+    }
+    let optVal = result.value ?? 0;
+
+    // Flip sign back for max problems
+    if (sense?.toLowerCase() === "max") {
+      optVal = -optVal;
+    }
+
+    return solutionToColumn(optVal, solutionArray);
+  } catch (error) {
+    return [[formatError(error)]] as unknown as number[][];
+  }
+}
+
+/**
+ * Get Shadow Prices (Dual Values) for LP constraints
+ *
+ * Shows the marginal value of each constraint:
+ * - Binding: constraint is active, shadow price shows value of relaxing it
+ * - Slack: constraint is not active, shadow price is 0
+ *
+ * @customfunction
+ * @param c Objective coefficients (vector)
+ * @param A Constraint matrix
+ * @param b Constraint RHS (vector)
+ * @param sense "min" or "max" (default: "min")
+ * @returns Constraint analysis [index, status, shadow_price] per row
+ */
+export async function SHADOW(
+  c: number[][],
+  A: number[][],
+  b: number[][],
+  sense?: string
+): Promise<(string | number)[][]> {
+  try {
+    await ensureWasm();
+
+    const n = getVectorLength(c);
+    const cVec = rangeToVector(c);
+    const AMat = rangeToMatrix(A);
+    const bVec = rangeToVector(b);
+
+    // Create variable
+    const x = variable(n);
+
+    // Objective: c'x
+    const cConst = constant(Array.from(cVec));
+    let objective = dot(cConst, x);
+
+    // Negate for maximization
+    const isMax = sense?.toLowerCase() === "max";
+    if (isMax) {
+      objective = objective.neg();
+    }
+
+    // Build constraints: Ax <= b and x >= 0
+    // Track inequality constraints for dual values
+    const inequalityConstraints = [];
+    for (let i = 0; i < AMat.length; i++) {
+      const row = constant(AMat[i]);
+      inequalityConstraints.push(dot(row, x).le(bVec[i]));
+    }
+
+    // Add non-negativity constraint
+    const constraints = [...inequalityConstraints, x.ge(0)];
+
+    // Solve
+    const result = await Problem.minimize(objective)
+      .subjectTo(constraints)
+      .solve();
+
+    // Get dual values
+    const duals = result.dual;
+
+    if (!duals || duals.length === 0) {
+      return [["Shadow prices not available for this problem type"]];
+    }
+
+    // Build output: header + one row per constraint
+    const output: (string | number)[][] = [
+      ["Constraint", "Status", "Shadow Price"],
+    ];
+
+    // Tolerance for determining binding vs slack
+    const tolerance = 1e-6;
+
+    for (let i = 0; i < AMat.length; i++) {
+      // Dual values correspond to constraints in order
+      const dualValue = i < duals.length ? duals[i] : 0;
+
+      // Adjust sign for maximization problems
+      const shadowPrice = isMax ? -dualValue : dualValue;
+
+      const status = Math.abs(dualValue) > tolerance ? "Binding" : "Slack";
+
+      output.push([i + 1, status, Math.round(shadowPrice * 1e6) / 1e6]);
+    }
+
+    return output;
+  } catch (error) {
+    return [[formatError(error)]] as unknown as (string | number)[][];
   }
 }
 
@@ -264,6 +471,8 @@ Office.onReady(() => {
     CustomFunctions.associate("LP", LP);
     CustomFunctions.associate("QP", QP);
     CustomFunctions.associate("PORTFOLIO", PORTFOLIO);
+    CustomFunctions.associate("MILP", MILP);
+    CustomFunctions.associate("SHADOW", SHADOW);
     console.log("[CVX] Custom functions registered!");
   } else {
     console.log("[CVX] CustomFunctions not available");

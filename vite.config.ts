@@ -26,6 +26,10 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
     target: "esnext",
+    commonjsOptions: {
+      include: [/highs/, /node_modules/],
+      transformMixedEsModules: true,
+    },
   },
 
   server: {
@@ -40,6 +44,11 @@ export default defineConfig({
     alias: {
       // Redirect Node.js WASM to browser WASM (never actually imported in browser)
       "clarabel-wasm-nodejs": "clarabel-wasm",
+      // ESM wrapper for highs CommonJS module - cvxjs expects default export
+      // Map 'highs-original' first so we can reference the real package
+      "highs-original": resolve(__dirname, "node_modules/highs/build/highs.js"),
+      // Then map 'highs' to our ESM wrapper
+      highs: resolve(__dirname, "src/shared/highs-esm.js"),
     },
   },
 

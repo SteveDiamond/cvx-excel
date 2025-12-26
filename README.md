@@ -4,8 +4,10 @@ Convex optimization for Microsoft Excel, powered by [cvxjs](https://github.com/S
 
 ## Features
 
-- **Custom Functions**: Use `=CVX.LP()`, `=CVX.QP()`, `=CVX.PORTFOLIO()` directly in cells
+- **Custom Functions**: Use `=CVX.LP()`, `=CVX.QP()`, `=CVX.PORTFOLIO()`, `=CVX.MILP()`, `=CVX.SHADOW()` directly in cells
 - **Task Pane UI**: Interactive solver panel for complex problems
+- **Integer Programming**: Binary and integer variables for scheduling, assignment, and yes/no decisions
+- **Shadow Prices**: See the marginal value of each constraint
 - **Cross-Platform**: Works on Excel Web, Windows Desktop, and Mac
 - **No Backend Required**: Solvers run entirely in the browser via WebAssembly
 
@@ -56,6 +58,57 @@ Solve: maximize returns'w - γ × w'Σw subject to sum(w) = 1, w ≥ 0
 | returns | Expected returns vector |
 | covariance | Covariance matrix of returns |
 | risk_aversion | Risk aversion parameter γ (optional, default: 1) |
+
+### CVX.MILP - Mixed-Integer Linear Programming
+
+Solve: minimize c'x subject to Ax ≤ b, with integer/binary constraints
+
+```
+=CVX.MILP(c_range, A_range, b_range, types_range, "min")
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| c | Objective coefficients (column vector) |
+| A | Constraint matrix (m × n) |
+| b | Constraint RHS (column vector) |
+| types | Variable types: "C" (continuous), "I" (integer), "B" (binary) |
+| sense | "min" or "max" (optional, default: "min") |
+
+**Example use cases:**
+- Project selection (binary: fund or not)
+- Staffing (integer: number of workers per shift)
+- Facility location (binary: open warehouse or not)
+
+### CVX.SHADOW - Shadow Prices (Dual Values)
+
+Analyze constraint sensitivity for LP problems.
+
+```
+=CVX.SHADOW(c_range, A_range, b_range, "min")
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| c | Objective coefficients (column vector) |
+| A | Constraint matrix (m × n) |
+| b | Constraint RHS (column vector) |
+| sense | "min" or "max" (optional, default: "min") |
+
+**Returns**: Table with columns:
+- **Constraint**: Constraint number (1, 2, 3, ...)
+- **Status**: "Binding" (active at optimum) or "Slack" (not active)
+- **Shadow Price**: Marginal value of relaxing the constraint by one unit
+
+## Error Handling
+
+All functions return clear, business-friendly error messages:
+
+| Error | Meaning |
+|-------|---------|
+| "No Solution: Your constraints cannot all be satisfied..." | Problem is infeasible - constraints conflict |
+| "Unbounded: The objective can be improved indefinitely..." | Add more constraints to bound the solution |
+| "Problem structure is not convex..." | Simplify your formulation |
 
 ## Development
 

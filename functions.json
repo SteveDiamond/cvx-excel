@@ -114,6 +114,92 @@
         "volatile": false,
         "cancelable": false
       }
+    },
+    {
+      "id": "MILP",
+      "name": "MILP",
+      "description": "Solve a mixed-integer linear program with binary/integer variables",
+      "helpUrl": "https://github.com/SteveDiamond/cvx-excel#cvxmilp",
+      "result": {
+        "type": "any",
+        "dimensionality": "matrix"
+      },
+      "parameters": [
+        {
+          "name": "c",
+          "description": "Objective coefficients (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "A",
+          "description": "Constraint matrix (m x n)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "b",
+          "description": "Constraint right-hand side (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "varTypes",
+          "description": "Variable types: C=continuous, I=integer, B=binary",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "sense",
+          "description": "Optimization sense: 'min' or 'max'",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "options": {
+        "volatile": false,
+        "cancelable": false
+      }
+    },
+    {
+      "id": "SHADOW",
+      "name": "SHADOW",
+      "description": "Get shadow prices (marginal values) for LP constraints",
+      "helpUrl": "https://github.com/SteveDiamond/cvx-excel#cvxshadow",
+      "result": {
+        "type": "any",
+        "dimensionality": "matrix"
+      },
+      "parameters": [
+        {
+          "name": "c",
+          "description": "Objective coefficients (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "A",
+          "description": "Constraint matrix (m x n)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "b",
+          "description": "Constraint right-hand side (column vector)",
+          "type": "any",
+          "dimensionality": "matrix"
+        },
+        {
+          "name": "sense",
+          "description": "Optimization sense: 'min' or 'max'",
+          "type": "string",
+          "optional": true
+        }
+      ],
+      "options": {
+        "volatile": false,
+        "cancelable": false
+      }
     }
   ]
 }

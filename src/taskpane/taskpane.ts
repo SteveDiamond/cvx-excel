@@ -9,6 +9,7 @@ import {
   quadForm,
   dot,
   loadWasm,
+  scalarVar,
 } from "cvxjs";
 
 declare const Office: {
@@ -334,6 +335,102 @@ async function solvePortfolio(): Promise<void> {
   }
 }
 
+// Solve Mixed-Integer Linear Program
+async function solveMILP(): Promise<void> {
+  try {
+    setStatus("Solving MILP...", "info");
+    await ensureWasm();
+
+    const cAddr = (document.getElementById("milp-c") as HTMLInputElement).value;
+    const AAddr = (document.getElementById("milp-A") as HTMLInputElement).value;
+    const bAddr = (document.getElementById("milp-b") as HTMLInputElement).value;
+    const typesAddr = (document.getElementById("milp-types") as HTMLInputElement).value;
+    const sense = (document.getElementById("milp-sense") as HTMLSelectElement).value;
+    const outputAddr = (document.getElementById("milp-output") as HTMLInputElement).value;
+
+    if (!cAddr || !AAddr || !bAddr || !typesAddr || !outputAddr) {
+      setStatus("Please fill in all range fields", "error");
+      return;
+    }
+
+    const cData = await readRange(cAddr);
+    const AData = await readRange(AAddr);
+    const bData = await readRange(bAddr);
+    const typesData = await readRange(typesAddr);
+
+    const c = cData.flat();
+    const b = bData.flat();
+    const types = typesData.flat().map((t) => String(t).toUpperCase());
+    const n = c.length;
+
+    if (types.length !== n) {
+      setStatus(`Variable types (${types.length}) must match objective (${n})`, "error");
+      return;
+    }
+
+    // Create individual variables with appropriate options
+    const vars: ReturnType<typeof scalarVar>[] = [];
+    for (let i = 0; i < n; i++) {
+      const type = types[i];
+      if (type === "B") {
+        vars.push(scalarVar({ binary: true }));
+      } else if (type === "I") {
+        vars.push(scalarVar({ integer: true, nonneg: true }));
+      } else {
+        vars.push(scalarVar({ nonneg: true }));
+      }
+    }
+
+    // Build objective: sum of c[i] * x[i]
+    let objective = vars[0].mul(c[0]);
+    for (let i = 1; i < n; i++) {
+      objective = objective.add(vars[i].mul(c[i]));
+    }
+
+    if (sense === "max") {
+      objective = objective.neg();
+    }
+
+    // Constraints: Ax <= b (sum of A[i][j] * x[j] <= b[i])
+    const constraints = [];
+    for (let i = 0; i < AData.length; i++) {
+      let rowExpr = vars[0].mul(AData[i][0]);
+      for (let j = 1; j < n; j++) {
+        rowExpr = rowExpr.add(vars[j].mul(AData[i][j]));
+      }
+      constraints.push(rowExpr.le(b[i]));
+    }
+
+    const result = await Problem.minimize(objective)
+      .subjectTo(constraints)
+      .solve();
+
+    let optVal = result.value ?? 0;
+    if (sense === "max") {
+      optVal = -optVal;
+    }
+
+    // Extract solution from individual variables
+    const solutionFlat: number[] = [];
+    for (const v of vars) {
+      const val = result.valueOf(v);
+      const num = Array.isArray(val) ? val[0] : (typeof val === 'object' ? Object.values(val)[0] : val);
+      solutionFlat.push(num as number);
+    }
+
+    const output: (number | string)[][] = [
+      ["Optimal", optVal],
+      ...solutionFlat.map((v, i) => [`x[${i}] (${types[i]})`, v ?? 0]),
+    ];
+    await writeRange(outputAddr, output);
+
+    setStatus(`Solved! Optimal value: ${optVal.toFixed(6)}`, "success");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    setStatus(`Error: ${msg}`, "error");
+  }
+}
+
 // Expose functions globally for HTML onclick handlers
 declare global {
   interface Window {
@@ -341,6 +438,7 @@ declare global {
     solveLP: typeof solveLP;
     solveQP: typeof solveQP;
     solvePortfolio: typeof solvePortfolio;
+    solveMILP: typeof solveMILP;
   }
 }
 
@@ -348,6 +446,7 @@ window.selectRange = selectRange;
 window.solveLP = solveLP;
 window.solveQP = solveQP;
 window.solvePortfolio = solvePortfolio;
+window.solveMILP = solveMILP;
 
 // Initialize when Office is ready
 Office.onReady(() => {

@@ -17,7 +17,6 @@ import {
   rangeToMatrix,
   solutionToColumn,
   getVectorLength,
-  getRangeDimensions,
 } from "../shared/excel-bridge.js";
 
 // WASM initialization state
@@ -99,7 +98,12 @@ export async function LP(
       optVal = -optVal;
     }
 
-    return solutionToColumn(optVal, Array.isArray(solution) ? solution.flat() : [solution]);
+    // valueOf returns object like {"0": val, "1": val}, convert to array
+    const solutionArray = Array.isArray(solution)
+      ? solution.flat()
+      : Object.values(solution) as number[];
+
+    return solutionToColumn(optVal, solutionArray);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return [[`Error: ${msg}`]] as unknown as number[][];
@@ -159,7 +163,13 @@ export async function QP(
 
     const solution = result.valueOf(x);
     const optVal = result.value ?? 0;
-    return solutionToColumn(optVal, Array.isArray(solution) ? solution.flat() : [solution]);
+
+    // valueOf returns object like {"0": val, "1": val}, convert to array
+    const solutionArray = Array.isArray(solution)
+      ? solution.flat()
+      : Object.values(solution) as number[];
+
+    return solutionToColumn(optVal, solutionArray);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return [[`Error: ${msg}`]] as unknown as number[][];
@@ -217,15 +227,19 @@ export async function PORTFOLIO(
       .solve();
 
     const weights = result.valueOf(w);
-    const weightsFlat = Array.isArray(weights) ? weights.flat() : [weights];
+
+    // valueOf returns object like {"0": val, "1": val}, convert to array
+    const weightsArray = Array.isArray(weights)
+      ? weights.flat()
+      : Object.values(weights) as number[];
 
     // Compute expected return of optimal portfolio
     let optExpectedReturn = 0;
-    for (let i = 0; i < weightsFlat.length; i++) {
-      optExpectedReturn += mu[i] * weightsFlat[i];
+    for (let i = 0; i < weightsArray.length; i++) {
+      optExpectedReturn += mu[i] * weightsArray[i];
     }
 
-    return solutionToColumn(optExpectedReturn, weightsFlat);
+    return solutionToColumn(optExpectedReturn, weightsArray);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return [[`Error: ${msg}`]] as unknown as number[][];
@@ -237,8 +251,21 @@ declare const CustomFunctions: {
   associate: (name: string, fn: Function) => void;
 };
 
-if (typeof CustomFunctions !== "undefined") {
-  CustomFunctions.associate("LP", LP);
-  CustomFunctions.associate("QP", QP);
-  CustomFunctions.associate("PORTFOLIO", PORTFOLIO);
-}
+declare const Office: {
+  onReady: (callback: () => void) => void;
+};
+
+// Wait for Office.js to be ready before registering functions
+console.log("[CVX] functions.ts loaded, waiting for Office.onReady...");
+Office.onReady(() => {
+  console.log("[CVX] Office.onReady fired");
+  if (typeof CustomFunctions !== "undefined") {
+    console.log("[CVX] Registering custom functions...");
+    CustomFunctions.associate("LP", LP);
+    CustomFunctions.associate("QP", QP);
+    CustomFunctions.associate("PORTFOLIO", PORTFOLIO);
+    console.log("[CVX] Custom functions registered!");
+  } else {
+    console.log("[CVX] CustomFunctions not available");
+  }
+});

@@ -33,6 +33,10 @@
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
     <Hosts>
       <Host xsi:type="Workbook">
+        <Runtimes>
+          <Runtime resid="SharedRuntime.Url" lifetime="long"/>
+        </Runtimes>
+
         <AllFormFactors>
           <ExtensionPoint xsi:type="CustomFunctions">
             <Script>
@@ -96,6 +100,7 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
+        <bt:Url id="SharedRuntime.Url" DefaultValue="https://localhost:3000/functions.html"/>
         <bt:Url id="Functions.Script.Url" DefaultValue="https://localhost:3000/src/functions/functions.ts"/>
         <bt:Url id="Functions.Page.Url" DefaultValue="https://localhost:3000/functions.html"/>
         <bt:Url id="Functions.Metadata.Url" DefaultValue="https://localhost:3000/functions.json"/>

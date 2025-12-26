@@ -173,6 +173,167 @@
       .tab-content.active {
         display: block;
       }
+
+      /* Problem Builder Styles */
+      .pb-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .pb-section-header h2 {
+        margin: 0;
+      }
+
+      .pb-section-header button {
+        width: auto;
+        padding: 4px 12px;
+        margin: 0;
+        font-size: 12px;
+      }
+
+      .pb-card {
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 8px;
+        position: relative;
+      }
+
+      .pb-remove-btn {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        margin: 0;
+        background: #ff5252;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 18px;
+      }
+
+      .pb-remove-btn:hover {
+        background: #d32f2f;
+      }
+
+      .pb-field {
+        margin-bottom: 8px;
+      }
+
+      .pb-field label {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 12px;
+        color: #666;
+      }
+
+      .pb-field-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .pb-field-row .pb-field {
+        flex: 1;
+      }
+
+      .pb-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pb-checkbox input {
+        width: auto;
+        margin: 0;
+      }
+
+      .pb-checkbox label {
+        display: inline;
+        margin: 0;
+        font-size: 13px;
+        color: #333;
+      }
+
+      .pb-section {
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 12px;
+      }
+
+      .pb-result-status {
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .pb-result-optimal {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .pb-result-infeasible,
+      .pb-result-unbounded,
+      .pb-result-error {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .pb-result-error {
+        font-size: 12px;
+        color: #c62828;
+        margin-bottom: 8px;
+      }
+
+      .pb-result-card {
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 8px;
+        margin-bottom: 8px;
+      }
+
+      .pb-result-header {
+        margin-bottom: 4px;
+      }
+
+      .pb-result-values {
+        font-family: monospace;
+        font-size: 12px;
+        background: #f5f5f5;
+        padding: 4px 8px;
+        border-radius: 2px;
+        margin-bottom: 8px;
+        word-break: break-all;
+      }
+
+      .pb-result-write {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+
+      .pb-result-write input {
+        flex: 1;
+        margin: 0;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+
+      .pb-result-write button {
+        width: auto;
+        margin: 0;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -186,6 +347,7 @@
       <button class="tab" data-tab="qp">QP</button>
       <button class="tab" data-tab="milp">MILP</button>
       <button class="tab" data-tab="portfolio">Portfolio</button>
+      <button class="tab" data-tab="builder">Builder</button>
     </div>
 
     <!-- Linear Programming Tab -->
@@ -343,6 +505,45 @@
         </div>
 
         <button onclick="solvePortfolio()">Optimize Portfolio</button>
+      </div>
+    </div>
+
+    <!-- Problem Builder Tab -->
+    <div id="builder-tab" class="tab-content">
+      <div class="section">
+        <div class="pb-section-header">
+          <h2>Variables</h2>
+          <button id="pb-add-variable" class="secondary">+ Add</button>
+        </div>
+        <div id="pb-variables-list">
+          <!-- Variable cards rendered here -->
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Objective</h2>
+        <div id="pb-objective">
+          <!-- Objective section rendered here -->
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="pb-section-header">
+          <h2>Constraints</h2>
+          <button id="pb-add-constraint" class="secondary">+ Add</button>
+        </div>
+        <div id="pb-constraints-list">
+          <!-- Constraint cards rendered here -->
+        </div>
+      </div>
+
+      <button id="pb-solve">Solve Problem</button>
+
+      <div class="section" style="margin-top: 12px;">
+        <h2>Results</h2>
+        <div id="pb-results">
+          <p>No results yet. Define a problem and click Solve.</p>
+        </div>
       </div>
     </div>
 

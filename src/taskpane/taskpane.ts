@@ -11,6 +11,7 @@ import {
   loadWasm,
   scalarVar,
 } from "cvxjs";
+import { problemBuilder } from "./problem-builder/index.js";
 
 declare const Office: {
   onReady: (callback: () => void) => void;
@@ -451,5 +452,6 @@ window.solveMILP = solveMILP;
 // Initialize when Office is ready
 Office.onReady(() => {
   setupTabs();
+  problemBuilder.init();
   setStatus("Ready. Select ranges and click Solve.", "info");
 });
